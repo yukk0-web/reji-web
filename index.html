@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#173b2b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<title>文化祭バザー POS</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;color:#17221b;background:#f3f6f3}
+*{box-sizing:border-box}body{margin:0;padding:0 0 84px}
+header{background:#173b2b;color:#fff;padding:18px 16px 14px;position:sticky;top:0;z-index:2}
+header h1{font-size:20px;margin:0 0 4px}header p{margin:0;font-size:12px;opacity:.85}
+nav{display:flex;gap:6px;padding:10px;background:#fff;position:sticky;top:70px;z-index:2;border-bottom:1px solid #dce4dd}
+nav button{flex:1;padding:10px 4px;border:0;border-radius:10px;background:#e8eee9;color:#23412f;font-weight:700}
+nav button.active{background:#173b2b;color:#fff}
+main{max-width:720px;margin:auto;padding:14px}
+.panel{display:none}.panel.active{display:block}
+.card{background:#fff;border:1px solid #e0e7e1;border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 2px 7px #173b2b0a}
+h2{font-size:18px;margin:0 0 12px}.muted{color:#68756c;font-size:13px}
+.products{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.product{min-height:112px;border:2px solid #dce8df;background:#f7fbf7;border-radius:14px;padding:14px 10px;text-align:left;color:#173b2b}
+.product strong{display:block;font-size:16px;margin-bottom:8px}.product span{font-size:21px;font-weight:800}
+.qtyrow,.orderrow,.statrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #edf1ed}
+.qtyrow:last-child,.orderrow:last-child,.statrow:last-child{border-bottom:0}
+.qtybuttons{display:flex;align-items:center;gap:10px}.qtybuttons button,.smallbtn{border:0;border-radius:9px;padding:8px 12px;background:#e8eee9;font-size:17px;font-weight:700}
+.total{display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:18px;padding:12px 0}
+.total strong{font-size:28px;color:#173b2b}
+.primary{width:100%;border:0;border-radius:12px;padding:15px;background:#17643d;color:#fff;font-size:17px;font-weight:800}
+.secondary{border:1px solid #b9c9bd;background:#fff;color:#23412f;border-radius:10px;padding:10px 12px;font-weight:700}
+.danger{border:1px solid #e5b7b7;background:#fff6f6;color:#a12222;border-radius:10px;padding:9px 11px;font-weight:700}
+.tag{display:inline-block;border-radius:99px;padding:5px 9px;font-size:12px;font-weight:800;background:#e8eee9;color:#23412f}
+.tag.ready{background:#fff0c2;color:#755000}.tag.done{background:#d9f3e2;color:#14562f}
+.orderhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.orderhead strong{font-size:21px}.orderitems{font-size:14px;margin:8px 0;color:#46534a}
+.orderactions{display:flex;gap:8px;flex-wrap:wrap}.orderactions button{flex:1}
+.statbig{font-size:28px;font-weight:850;color:#173b2b}
+input{font:inherit;padding:10px;border:1px solid #cbd8ce;border-radius:9px;width:100%}
+footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #dce4dd;padding:9px 14px calc(9px + env(safe-area-inset-bottom));font-size:12px;color:#657268;text-align:center}
+.empty{text-align:center;padding:24px 8px;color:#718075}
+@media(min-width:600px){main{padding:20px}.product{padding:18px}}
+</style>
+</head>
+<body>
+<header><h1>文化祭バザー POS</h1><p>肉巻きおにぎり販売 · オフライン対応</p></header>
+<nav>
+<button class="active" data-tab="register">レジ</button>
+<button data-tab="orders">注文一覧</button>
+<button data-tab="sales">売上集計</button>
+</nav>
+<main>
+<section id="register" class="panel active">
+  <div class="card">
+    <h2>商品を選ぶ</h2>
+    <div class="products">
+      <button class="product" data-add="normal"><strong>肉巻きおにぎり</strong><span>350円</span><div class="muted">タップして追加</div></button>
+      <button class="product" data-add="cheese"><strong>チーズ肉巻き</strong><span>400円</span><div class="muted">タップして追加</div></button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>今回の注文</h2>
+    <div class="qtyrow"><div>肉巻きおにぎり<br><span class="muted">350円</span></div><div class="qtybuttons"><button data-change="normal" data-delta="-1">−</button><strong id="normalQty">0</strong><button data-change="normal" data-delta="1">＋</button></div></div>
+    <div class="qtyrow"><div>チーズ肉巻きおにぎり<br><span class="muted">400円</span></div><div class="qtybuttons"><button data-change="cheese" data-delta="-1">−</button><strong id="cheeseQty">0</strong><button data-change="cheese" data-delta="1">＋</button></div></div>
+    <div class="total"><span>合計金額</span><strong id="currentTotal">0円</strong></div>
+    <button class="primary" id="checkout">会計確定・番号発行</button>
+    <p class="muted">※会計確定後に注文番号が発行されます。札をお客様に渡してください。</p>
+  </div>
+  <div class="card" id="lastOrderCard" hidden>
+    <h2>直前に発行した注文</h2><div id="lastOrder"></div>
+  </div>
+</section>
+<section id="orders" class="panel">
+  <div class="card"><h2>注文一覧</h2><p class="muted">注文番号と商品を確認し、状態を更新してください。</p>
+    <div id="orderList"></div>
+  </div>
+</section>
+<section id="sales" class="panel">
+  <div class="card"><h2>売上集計</h2>
+    <div class="statrow"><span>総売上</span><span class="statbig" id="grossSales">0円</span></div>
+    <div class="statrow"><span>注文数</span><strong id="orderCount">0件</strong></div>
+    <div class="statrow"><span>肉巻きおにぎり</span><strong id="normalSales">0個 / 0円</strong></div>
+    <div class="statrow"><span>チーズ肉巻きおにぎり</span><strong id="cheeseSales">0個 / 0円</strong></div>
+    <div class="statrow"><span>未提供の注文</span><strong id="pendingCount">0件</strong></div>
+  </div>
+  <div class="card">
+    <h2>データのバックアップ</h2>
+    <p class="muted">CSVを保存しておくと、後でパソコンなどで集計できます。文化祭前にも保存操作をテストしてください。</p>
+    <button class="primary" id="exportCsv">売上データをCSVで保存</button>
+    <div style="height:8px"></div>
+    <button class="secondary" id="exportJson">全注文データをバックアップ</button>
+    <div style="height:8px"></div>
+    <button class="secondary" id="importJson">バックアップを復元</button>
+    <input id="importFile" type="file" accept="application/json,.json" hidden>
+  </div>
+  <div class="card">
+    <h2>全データの初期化</h2>
+    <p class="muted">テスト注文を消す場合に使用します。売上データが必要なら先にバックアップしてください。</p>
+    <button class="danger" id="resetAll">すべての注文を削除</button>
+  </div>
+</section>
+</main>
+<footer id="saveStatus">端末内に保存します。定期的にバックアップしてください。</footer>
+<script>
+(() => {
+  const PRICES = { normal: 350, cheese: 400 };
+  const NAMES = { normal: "肉巻きおにぎり", cheese: "チーズ肉巻きおにぎり" };
+  const STORAGE_KEY = "bunkasai-pos-v1";
+  let cart = {normal:0, cheese:0};
+  let state = loadState();
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return {nextNumber:1, orders:[]};
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.orders)) throw new Error("bad data");
+      return parsed;
+    } catch(e) { return {nextNumber:1, orders:[]}; }
+  }
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      document.getElementById("saveStatus").textContent = "保存済み · " + new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"});
+    } catch(e) {
+      document.getElementById("saveStatus").textContent = "保存できません。データをバックアップしてください。";
+      alert("端末内に保存できませんでした。ブラウザの設定を確認してください。");
+    }
+  }
+  const yen = n => n.toLocaleString("ja-JP") + "円";
+  const total = c => c.normal*PRICES.normal + c.cheese*PRICES.cheese;
+  const numberLabel = n => String(n).padStart(3,"0");
+  function renderCart() {
+    document.getElementById("normalQty").textContent = cart.normal;
+    document.getElementById("cheeseQty").textContent = cart.cheese;
+    document.getElementById("currentTotal").textContent = yen(total(cart));
+  }
+  function setTab(tab) {
+    document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+    document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active",p.id===tab));
+    if(tab==="orders") renderOrders();
+    if(tab==="sales") renderSales();
+  }
+  document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
+  document.querySelectorAll("[data-add]").forEach(b=>b.addEventListener("click",()=>{cart[b.dataset.add]++;renderCart();}));
+  document.querySelectorAll("[data-change]").forEach(b=>b.addEventListener("click",()=>{
+    const k=b.dataset.change; cart[k]=Math.max(0,cart[k]+Number(b.dataset.delta));renderCart();
+  }));
+  document.getElementById("checkout").addEventListener("click",()=>{
+    if(total(cart)===0){alert("商品を1個以上選んでください。");return;}
+    const order={number:state.nextNumber++, normal:cart.normal, cheese:cart.cheese, total:total(cart), status:"調理中", createdAt:new Date().toISOString()};
+    state.orders.push(order); saveState();
+    document.getElementById("lastOrderCard").hidden=false;
+    document.getElementById("lastOrder").innerHTML=`<div class="orderhead"><strong>No. ${numberLabel(order.number)}</strong><span class="tag">${yen(order.total)}</span></div><p>${NAMES.normal}：${order.normal}個<br>${NAMES.cheese}：${order.cheese}個</p><p><strong>この番号の札をお客様に渡してください。</strong></p>`;
+    cart={normal:0,cheese:0};renderCart();
+    if(navigator.vibrate) navigator.vibrate(100);
+  });
+  function renderOrders(){
+    const el=document.getElementById("orderList");
+    if(!state.orders.length){el.innerHTML='<div class="empty">まだ注文はありません</div>';return;}
+    el.innerHTML=[...state.orders].reverse().map(o=>{
+      const tagClass=o.status==="提供可能"?"ready":o.status==="提供済み"?"done":"";
+      const next=o.status==="調理中"?"提供可能":o.status==="提供可能"?"提供済み":"提供済み";
+      return `<div class="card"><div class="orderhead"><strong>No. ${numberLabel(o.number)}</strong><span class="tag ${tagClass}">${o.status}</span></div><div class="orderitems">${NAMES.normal}：${o.normal}個<br>${NAMES.cheese}：${o.cheese}個<br><strong>合計 ${yen(o.total)}</strong></div><div class="orderactions">${o.status!=="提供済み"?`<button class="primary" data-status="${o.number}" style="padding:10px">→ ${next}</button>`:""}<button class="danger" data-cancel="${o.number}">取消</button></div></div>`;
+    }).join("");
+    el.querySelectorAll("[data-status]").forEach(b=>b.addEventListener("click",()=>{
+      const o=state.orders.find(x=>x.number===Number(b.dataset.status));if(!o)return;
+      o.status=o.status==="調理中"?"提供可能":"提供済み";saveState();renderOrders();
+    }));
+    el.querySelectorAll("[data-cancel]").forEach(b=>b.addEventListener("click",()=>{
+      const n=Number(b.dataset.cancel);if(!confirm(`No. ${numberLabel(n)} の注文を削除しますか？売上集計からも除外されます。`))return;
+      state.orders=state.orders.filter(x=>x.number!==n);saveState();renderOrders();renderSales();
+    }));
+  }
+  function renderSales(){
+    const orders=state.orders;
+    const normal=orders.reduce((s,o)=>s+o.normal,0), cheese=orders.reduce((s,o)=>s+o.cheese,0);
+    document.getElementById("grossSales").textContent=yen(orders.reduce((s,o)=>s+o.total,0));
+    document.getElementById("orderCount").textContent=orders.length+"件";
+    document.getElementById("normalSales").textContent=`${normal}個 / ${yen(normal*PRICES.normal)}`;
+    document.getElementById("cheeseSales").textContent=`${cheese}個 / ${yen(cheese*PRICES.cheese)}`;
+    document.getElementById("pendingCount").textContent=orders.filter(o=>o.status!=="提供済み").length+"件";
+  }
+  function download(name, content, type){
+    const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  }
+  document.getElementById("exportCsv").addEventListener("click",()=>{
+    const rows=[["注文番号","注文日時","肉巻きおにぎり個数","チーズ肉巻きおにぎり個数","合計金額","状態"]];
+    state.orders.forEach(o=>rows.push([numberLabel(o.number),new Date(o.createdAt).toLocaleString("ja-JP"),o.normal,o.cheese,o.total,o.status]));
+    const csv="\uFEFF"+rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n");
+    download("bunkasai-sales.csv",csv,"text/csv;charset=utf-8");
+  });
+  document.getElementById("exportJson").addEventListener("click",()=>{
+    download("bunkasai-backup.json",JSON.stringify(state,null,2),"application/json");
+  });
+  document.getElementById("importJson").addEventListener("click",()=>document.getElementById("importFile").click());
+  document.getElementById("importFile").addEventListener("change",async e=>{
+    const f=e.target.files[0];if(!f)return;
+    try{const parsed=JSON.parse(await f.text());if(!Array.isArray(parsed.orders)||!Number.isInteger(parsed.nextNumber))throw new Error();
+      if(!confirm("現在の注文データをバックアップ内容で置き換えますか？"))return;
+      state=parsed;saveState();renderOrders();renderSales();alert("復元しました。");
+    }catch(err){alert("バックアップファイルを読み込めませんでした。");}
+    e.target.value="";
+  });
+  document.getElementById("resetAll").addEventListener("click",()=>{
+    if(!confirm("すべての注文データを削除します。本当によいですか？"))return;
+    if(!confirm("元に戻せません。事前にバックアップしましたか？"))return;
+    state={nextNumber:1,orders:[]};saveState();renderOrders();renderSales();alert("初期化しました。");
+  });
+  renderCart();renderSales();
+  if("serviceWorker" in navigator && (location.protocol==="https:"||location.hostname==="localhost")) {
+    window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+  }
+})();
+</script>
+</body>
+</html>
