@@ -108,6 +108,8 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
   const PRICES = { normal: 350, cheese: 400 };
   const NAMES = { normal: "肉巻きおにぎり", cheese: "チーズ肉巻きおにぎり" };
   const STORAGE_KEY = "bunkasai-pos-v1";
+  // 用意する番号札の枚数。必要ならこの数字を変更してください。
+  const TICKET_COUNT = 20;
   let cart = {normal:0, cheese:0};
   let state = loadState();
   function loadState() {
@@ -131,6 +133,14 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
   const yen = n => n.toLocaleString("ja-JP") + "円";
   const total = c => c.normal*PRICES.normal + c.cheese*PRICES.cheese;
   const numberLabel = n => String(n).padStart(3,"0");
+  // 「提供済み」以外の注文が使用中。提供済みになった番号は再利用できる。
+  function getAvailableNumber() {
+    const inUse = new Set(state.orders.filter(o => o.status !== "提供済み").map(o => o.number));
+    for (let n = 1; n <= TICKET_COUNT; n++) {
+      if (!inUse.has(n)) return n;
+    }
+    return null;
+  }
   function renderCart() {
     document.getElementById("normalQty").textContent = cart.normal;
     document.getElementById("cheeseQty").textContent = cart.cheese;
@@ -149,7 +159,12 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
   }));
   document.getElementById("checkout").addEventListener("click",()=>{
     if(total(cart)===0){alert("商品を1個以上選んでください。");return;}
-    const order={number:state.nextNumber++, normal:cart.normal, cheese:cart.cheese, total:total(cart), status:"調理中", createdAt:new Date().toISOString()};
+    const availableNumber = getAvailableNumber();
+    if (availableNumber === null) {
+      alert(`番号札がすべて使用中です（${TICKET_COUNT}枚）。提供済みの注文を確認してから、もう一度会計してください。`);
+      return;
+    }
+    const order={number:availableNumber, normal:cart.normal, cheese:cart.cheese, total:total(cart), status:"調理中", createdAt:new Date().toISOString()};
     state.orders.push(order); saveState();
     document.getElementById("lastOrderCard").hidden=false;
     document.getElementById("lastOrder").innerHTML=`<div class="orderhead"><strong>No. ${numberLabel(order.number)}</strong><span class="tag">${yen(order.total)}</span></div><p>${NAMES.normal}：${order.normal}個<br>${NAMES.cheese}：${order.cheese}個</p><p><strong>この番号の札をお客様に渡してください。</strong></p>`;
@@ -162,7 +177,8 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
     el.innerHTML=[...state.orders].reverse().map(o=>{
       const tagClass=o.status==="提供可能"?"ready":o.status==="提供済み"?"done":"";
       const next=o.status==="調理中"?"提供可能":o.status==="提供可能"?"提供済み":"提供済み";
-      return `<div class="card"><div class="orderhead"><strong>No. ${numberLabel(o.number)}</strong><span class="tag ${tagClass}">${o.status}</span></div><div class="orderitems">${NAMES.normal}：${o.normal}個<br>${NAMES.cheese}：${o.cheese}個<br><strong>合計 ${yen(o.total)}</strong></div><div class="orderactions">${o.status!=="提供済み"?`<button class="primary" data-status="${o.number}" style="padding:10px">→ ${next}</button>`:""}<button class="danger" data-cancel="${o.number}">取消</button></div></div>`;
+      const time = o.createdAt ? new Date(o.createdAt).toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}) : "";
+      return `<div class="card"><div class="orderhead"><strong>No. ${numberLabel(o.number)}</strong><span class="tag ${tagClass}">${o.status}</span></div><div class="muted">注文時刻：${time}</div><div class="orderitems">${NAMES.normal}：${o.normal}個<br>${NAMES.cheese}：${o.cheese}個<br><strong>合計 ${yen(o.total)}</strong></div><div class="orderactions">${o.status!=="提供済み"?`<button class="primary" data-status="${o.number}" style="padding:10px">→ ${next}</button>`:""}<button class="danger" data-cancel="${o.number}">取消</button></div></div>`;
     }).join("");
     el.querySelectorAll("[data-status]").forEach(b=>b.addEventListener("click",()=>{
       const o=state.orders.find(x=>x.number===Number(b.dataset.status));if(!o)return;
