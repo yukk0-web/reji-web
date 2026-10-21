@@ -37,6 +37,7 @@ h2{font-size:18px;margin:0 0 12px}.muted{color:#68756c;font-size:13px}
 .orderhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .orderhead strong{font-size:21px}.orderitems{font-size:14px;margin:8px 0;color:#46534a}
 .orderactions{display:flex;gap:8px;flex-wrap:wrap}.orderactions button{flex:1}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px}.filter-option{display:flex;align-items:center;gap:6px;border:1px solid #d5e0d7;border-radius:10px;padding:8px 10px;background:#f7faf7;font-size:14px;font-weight:700}.filter-option input{width:auto;margin:0;accent-color:#17643d}
 .statbig{font-size:28px;font-weight:850;color:#173b2b}
 input{font:inherit;padding:10px;border:1px solid #cbd8ce;border-radius:9px;width:100%}
 footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #dce4dd;padding:9px 14px calc(9px + env(safe-area-inset-bottom));font-size:12px;color:#657268;text-align:center}
@@ -74,6 +75,12 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
 </section>
 <section id="orders" class="panel">
   <div class="card"><h2>注文一覧</h2><p class="muted">注文番号と商品を確認し、状態を更新してください。</p>
+    <div class="filters" aria-label="注文状態で絞り込み">
+      <label class="filter-option"><input type="checkbox" data-filter-status="調理中" checked> 調理中</label>
+      <label class="filter-option"><input type="checkbox" data-filter-status="提供可能" checked> 提供可能</label>
+      <label class="filter-option"><input type="checkbox" data-filter-status="提供済み" checked> 提供済み</label>
+    </div>
+    <p id="filterSummary" class="muted">すべての状態を表示中</p>
     <div id="orderList"></div>
   </div>
 </section>
@@ -118,6 +125,10 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
       if (!raw) return {nextNumber:1, orders:[]};
       const parsed = JSON.parse(raw);
       if (!parsed || !Array.isArray(parsed.orders)) throw new Error("bad data");
+      // 旧データにも内部IDを付け、番号再利用後も個々の注文を区別する。
+      parsed.orders.forEach((o, i) => {
+        if (!o.id) o.id = `${o.createdAt || "legacy"}-${i}-${Math.random().toString(36).slice(2,8)}`;
+      });
       return parsed;
     } catch(e) { return {nextNumber:1, orders:[]}; }
   }
@@ -164,29 +175,40 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
       alert(`番号札がすべて使用中です（${TICKET_COUNT}枚）。提供済みの注文を確認してから、もう一度会計してください。`);
       return;
     }
-    const order={number:availableNumber, normal:cart.normal, cheese:cart.cheese, total:total(cart), status:"調理中", createdAt:new Date().toISOString()};
+    const order={id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`, number:availableNumber, normal:cart.normal, cheese:cart.cheese, total:total(cart), status:"調理中", createdAt:new Date().toISOString()};
     state.orders.push(order); saveState();
     document.getElementById("lastOrderCard").hidden=false;
     document.getElementById("lastOrder").innerHTML=`<div class="orderhead"><strong>No. ${numberLabel(order.number)}</strong><span class="tag">${yen(order.total)}</span></div><p>${NAMES.normal}：${order.normal}個<br>${NAMES.cheese}：${order.cheese}個</p><p><strong>この番号の札をお客様に渡してください。</strong></p>`;
     cart={normal:0,cheese:0};renderCart();
     if(navigator.vibrate) navigator.vibrate(100);
   });
+  function selectedStatuses(){
+    return new Set([...document.querySelectorAll("[data-filter-status]:checked")].map(input=>input.dataset.filterStatus));
+  }
+  document.querySelectorAll("[data-filter-status]").forEach(input=>input.addEventListener("change",renderOrders));
   function renderOrders(){
     const el=document.getElementById("orderList");
-    if(!state.orders.length){el.innerHTML='<div class="empty">まだ注文はありません</div>';return;}
-    el.innerHTML=[...state.orders].reverse().map(o=>{
+    const selected=selectedStatuses();
+    const all=[...state.orders].reverse();
+    const filtered=all.filter(o=>selected.has(o.status));
+    const summary=document.getElementById("filterSummary");
+    summary.textContent=`表示中：${filtered.length}件 / 全${all.length}件`;
+    if(!all.length){el.innerHTML='<div class="empty">まだ注文はありません</div>';return;}
+    if(!filtered.length){el.innerHTML='<div class="empty">選択した状態の注文はありません</div>';return;}
+    el.innerHTML=filtered.map(o=>{
       const tagClass=o.status==="提供可能"?"ready":o.status==="提供済み"?"done":"";
       const next=o.status==="調理中"?"提供可能":o.status==="提供可能"?"提供済み":"提供済み";
       const time = o.createdAt ? new Date(o.createdAt).toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}) : "";
-      return `<div class="card"><div class="orderhead"><strong>No. ${numberLabel(o.number)}</strong><span class="tag ${tagClass}">${o.status}</span></div><div class="muted">注文時刻：${time}</div><div class="orderitems">${NAMES.normal}：${o.normal}個<br>${NAMES.cheese}：${o.cheese}個<br><strong>合計 ${yen(o.total)}</strong></div><div class="orderactions">${o.status!=="提供済み"?`<button class="primary" data-status="${o.number}" style="padding:10px">→ ${next}</button>`:""}<button class="danger" data-cancel="${o.number}">取消</button></div></div>`;
+      return `<div class="card"><div class="orderhead"><strong>No. ${numberLabel(o.number)}</strong><span class="tag ${tagClass}">${o.status}</span></div><div class="muted">注文時刻：${time}</div><div class="orderitems">${NAMES.normal}：${o.normal}個<br>${NAMES.cheese}：${o.cheese}個<br><strong>合計 ${yen(o.total)}</strong></div><div class="orderactions">${o.status!=="提供済み"?`<button class="primary" data-status-id="${o.id}" style="padding:10px">→ ${next}</button>`:""}<button class="danger" data-cancel-id="${o.id}">取消</button></div></div>`;
     }).join("");
-    el.querySelectorAll("[data-status]").forEach(b=>b.addEventListener("click",()=>{
-      const o=state.orders.find(x=>x.number===Number(b.dataset.status));if(!o)return;
-      o.status=o.status==="調理中"?"提供可能":"提供済み";saveState();renderOrders();
+    el.querySelectorAll("[data-status-id]").forEach(b=>b.addEventListener("click",()=>{
+      const o=state.orders.find(x=>x.id===b.dataset.statusId);if(!o)return;
+      o.status=o.status==="調理中"?"提供可能":"提供済み";saveState();renderOrders();renderSales();
     }));
-    el.querySelectorAll("[data-cancel]").forEach(b=>b.addEventListener("click",()=>{
-      const n=Number(b.dataset.cancel);if(!confirm(`No. ${numberLabel(n)} の注文を削除しますか？売上集計からも除外されます。`))return;
-      state.orders=state.orders.filter(x=>x.number!==n);saveState();renderOrders();renderSales();
+    el.querySelectorAll("[data-cancel-id]").forEach(b=>b.addEventListener("click",()=>{
+      const o=state.orders.find(x=>x.id===b.dataset.cancelId);if(!o)return;
+      if(!confirm(`No. ${numberLabel(o.number)} の注文を削除しますか？売上集計からも除外されます。`))return;
+      state.orders=state.orders.filter(x=>x.id!==o.id);saveState();renderOrders();renderSales();
     }));
   }
   function renderSales(){
